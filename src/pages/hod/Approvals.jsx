@@ -1,40 +1,66 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { mockRequests } from '@/lib/mockData';
 import StatusBadge from '@/components/common/StatusBadge';
 import RequestActionDialog from '@/components/common/RequestActionDialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { requests as mockRequestsApi } from '@/lib/mockApi';
 
 const HODApprovals = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [selectedRequest, setSelectedRequest] = useState(null);
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const loadRequests = async () => {
+    setLoading(true);
+    try {
+      const all = await mockRequestsApi.getAll();
+      setRequests(Array.isArray(all) ? all : []);
+    } catch (err) {
+      console.error('Failed to load requests', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadRequests();
+  }, []);
 
   // Logic: HOD sees Furniture (from MA) and Equipment (from Lab In-charge)
-  // Logic: Lab In-charge sees Equipment (from Lab TO)
-
-  // Mock filter based on user role
-  const pendingRequests = mockRequests.filter(req => {
-     if (user?.role === 'hod') {
-        return (req.status === 'pending' && req.category === 'furniture') ||
-               (req.status === 'approved_by_lab_incharge' && req.category === 'lab_equipment');
-     }
-     if (user?.role === 'lab_incharge') {
-        return req.status === 'pending' && req.category === 'lab_equipment';
-     }
-     return false;
+  // Lab in-charge sees Equipment (from Lab TO)
+  const pendingRequests = requests.filter(req => {
+    if (user?.role === 'hod') {
+      // For HOD: furniture requests pending, or equipment approved by lab_incharge
+      return (req.status === 'pending' && req.category === 'furniture') ||
+             (req.status === 'approved_by_lab_incharge' && req.category === 'lab_equipment') ||
+             (req.status === 'pending' && req.category === 'lab_equipment' && req.approvalChain?.[0]?.role === 'hod');
+    }
+    if (user?.role === 'lab_incharge') {
+      return req.status === 'pending' && req.category === 'lab_equipment';
+    }
+    return false;
   });
 
-  const handleAction = (id, action, remarks) => {
-    // In a real app, API call here
-    toast({
-      title: action === 'approve' ? "Request Approved" : "Request Rejected",
-      description: `Request ${id} has been processed successfully.`,
-      className: action === 'approve' ? "bg-green-50" : "bg-red-50"
-    });
-    // Update local state would happen here
+  const handleAction = async (id, action, remarks) => {
+    try {
+      if (!user) throw new Error('Not authenticated');
+      if (action === 'approve') {
+        await mockRequestsApi.approve(id, user.role, { id: user.id, name: user.name });
+        toast({ title: 'Request Approved', description: `Request ${id} approved by ${user.role}` });
+      } else {
+        await mockRequestsApi.reject(id, user.role, { id: user.id, name: user.name }, remarks);
+        toast({ title: 'Request Rejected', description: `Request ${id} rejected by ${user.role}`, variant: 'destructive' });
+      }
+      // refresh
+      await loadRequests();
+    } catch (err) {
+      console.error('Action failed', err);
+      toast({ title: 'Error', description: err.message || 'Failed to process request', variant: 'destructive' });
+    }
   };
 
   return (
@@ -54,10 +80,12 @@ const HODApprovals = () => {
                    {req.items.length} Items • Total: Rs. {req.totalEstimatedCost.toLocaleString()}
                 </p>
                 <p className="text-xs bg-muted inline-block px-2 py-1 rounded">
-                   Requester: {req.requestedBy.name}
+                   Requester: {req.requestedBy?.name}
                 </p>
               </div>
-              <Button onClick={() => setSelectedRequest(req)}>Review</Button>
+              <div className="flex items-center gap-2">
+                <Button onClick={() => setSelectedRequest(req)}>Review</Button>
+              </div>
             </CardContent>
           </Card>
         ))}

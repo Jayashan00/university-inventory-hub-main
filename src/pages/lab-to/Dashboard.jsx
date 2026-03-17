@@ -1,16 +1,31 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Package, ArrowRightLeft, Wrench, AlertTriangle, Plus } from 'lucide-react';
-import { mockInventoryItems } from '@/lib/mockData';
 import StatsCard from '@/components/common/StatsCard';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { inventory as mockInventoryApi } from '@/lib/mockApi';
 
 const LabTODashboard = () => {
   const navigate = useNavigate();
-  // Filter items for current Lab TO (Mock logic assumes Lab TO belongs to CE Dept)
-  const myLabItems = mockInventoryItems.filter(i => i.department === 'CE');
+  const [items, setItems] = useState([]);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const all = await mockInventoryApi.getAll();
+        if (mounted) setItems(Array.isArray(all) ? all : []);
+      } catch (err) {
+        console.error('Failed to load inventory', err);
+      }
+    })();
+    return () => { mounted = false };
+  }, []);
+
+  // Assume Lab TO belongs to CE (keep same mock assumption)
+  const myLabItems = items.filter(i => i.department === 'CE');
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
@@ -61,4 +76,5 @@ const LabTODashboard = () => {
     </motion.div>
   );
 };
+
 export default LabTODashboard;

@@ -10,6 +10,7 @@ import {
   ChevronDown,
   AlertTriangle,
 } from 'lucide-react';
+
 import { mockInventoryItems } from '@/lib/mockData';
 import { DEPARTMENTS } from '@/lib/constants';
 import DataTable from '@/components/common/DataTable';
@@ -61,7 +62,7 @@ const AdminInventory = () => {
 
   const [items, setItems] = useState(mockInventoryItems);
 
-  const emptyForm = {
+  const initialFormData = {
     name: '',
     category: '',
     department: '',
@@ -73,7 +74,7 @@ const AdminInventory = () => {
     supplier: '',
   };
 
-  const [formData, setFormData] = useState(emptyForm);
+  const [formData, setFormData] = useState(initialFormData);
 
   const filteredItems = items.filter((item) => {
     const matchesCategory = activeTab === 'all' || item.category === activeTab;
@@ -82,7 +83,7 @@ const AdminInventory = () => {
     const matchesStatus =
       selectedStatus === 'all' || item.status === selectedStatus;
     const matchesSearch =
-      (item.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (item.description || '').toLowerCase().includes(searchQuery.toLowerCase());
 
     return (
@@ -99,7 +100,7 @@ const AdminInventory = () => {
   const furnitureCount = items.filter((i) => i.category === 'furniture').length;
 
   const resetForm = () => {
-    setFormData(emptyForm);
+    setFormData(initialFormData);
     setEditingItem(null);
   };
 
@@ -136,12 +137,8 @@ const AdminInventory = () => {
 
   const handleDelete = async (id) => {
     try {
-      if (mockInventoryApi.delete) {
-        await mockInventoryApi.delete(id);
-      }
-
+      await mockInventoryApi.delete(id);
       setItems((prev) => prev.filter((item) => item.id !== id));
-
       toast({
         title: 'Success',
         description: 'Item deleted successfully',
@@ -195,14 +192,10 @@ const AdminInventory = () => {
         condition: 'good',
       };
 
-      itemData.totalValue =
-        (itemData.quantity || 0) * (itemData.unitPrice || 0);
+      itemData.totalValue = (itemData.quantity || 0) * (itemData.unitPrice || 0);
 
       if (editingItem) {
-        const updated = mockInventoryApi.update
-          ? await mockInventoryApi.update(editingItem.id, itemData)
-          : { ...editingItem, ...itemData };
-
+        const updated = await mockInventoryApi.update(editingItem.id, itemData);
         updated.totalValue =
           updated.totalValue ??
           (updated.quantity || 0) * (updated.unitPrice || 0);
@@ -216,10 +209,7 @@ const AdminInventory = () => {
           description: 'Item updated successfully',
         });
       } else {
-        const created = mockInventoryApi.create
-          ? await mockInventoryApi.create(itemData)
-          : { id: Date.now(), ...itemData };
-
+        const created = await mockInventoryApi.create(itemData);
         created.totalValue =
           created.totalValue ??
           (created.quantity || 0) * (created.unitPrice || 0);
@@ -334,11 +324,14 @@ const AdminInventory = () => {
               <Eye className="w-4 h-4 mr-2" />
               View Details
             </DropdownMenuItem>
+
             <DropdownMenuItem onClick={() => openEditDialog(item)}>
               <Edit className="w-4 h-4 mr-2" />
               Edit Item
             </DropdownMenuItem>
+
             <DropdownMenuSeparator />
+
             <DropdownMenuItem
               className="text-destructive"
               onClick={() => handleDelete(item.id)}
@@ -376,7 +369,7 @@ const AdminInventory = () => {
           <DialogTrigger asChild>
             <Button className="btn-primary-gradient">
               <Plus className="w-4 h-4 mr-2" />
-              {editingItem ? 'Edit Item' : 'Add New Item'}
+              Add New Item
             </Button>
           </DialogTrigger>
 
@@ -387,7 +380,7 @@ const AdminInventory = () => {
               </DialogTitle>
               <DialogDescription>
                 {editingItem
-                  ? 'Modify the fields and save to update the item'
+                  ? 'Update the details of the selected item'
                   : 'Fill in the details to add a new item to the inventory'}
               </DialogDescription>
             </DialogHeader>
@@ -516,9 +509,10 @@ const AdminInventory = () => {
                 >
                   Cancel
                 </Button>
+
                 <Button
-                  className="btn-primary-gradient"
                   type="submit"
+                  className="btn-primary-gradient"
                   disabled={isLoading}
                 >
                   {isLoading
@@ -608,8 +602,12 @@ const AdminInventory = () => {
           {selectedItem && (
             <>
               <DialogHeader>
-                <DialogTitle className="font-serif">{selectedItem.name}</DialogTitle>
-                <DialogDescription>{selectedItem.description}</DialogDescription>
+                <DialogTitle className="font-serif">
+                  {selectedItem.name}
+                </DialogTitle>
+                <DialogDescription>
+                  {selectedItem.description}
+                </DialogDescription>
               </DialogHeader>
 
               <div className="grid grid-cols-2 gap-4 py-4">
@@ -680,8 +678,8 @@ const AdminInventory = () => {
                 <Button
                   className="btn-primary-gradient"
                   onClick={() => {
-                    openEditDialog(selectedItem);
                     setSelectedItem(null);
+                    openEditDialog(selectedItem);
                   }}
                 >
                   <Edit className="w-4 h-4 mr-2" />

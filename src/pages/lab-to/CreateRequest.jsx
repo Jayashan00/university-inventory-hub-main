@@ -11,27 +11,94 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
+import { requests as mockRequests } from '@/lib/mockApi';
 
 const CreateRequest = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const [formData, setFormData] = useState({
+    itemName: '',
+    quantity: '1',
+    unitPrice: '',
+    justification: '',
+    priority: 'medium',
+  });
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleSelectChange = (name, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const calculateTotal = () => {
+    return parseInt(formData.quantity) * parseInt(formData.unitPrice) || 0;
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!formData.itemName || !formData.quantity || !formData.unitPrice || !formData.justification) {
+      toast({ title: 'Validation Error', description: 'Please fill in all required fields', variant: 'destructive' });
+      return;
+    }
+
     setLoading(true);
 
-    // Simulate API submission
-    setTimeout(() => {
-      setLoading(false);
-      toast({
-        title: "Request Submitted",
-        description: "Your capital item request has been sent to the Lab In-Charge for approval.",
-        className: "bg-green-50 border-green-200"
-      });
+    try {
+      const totalCost = calculateTotal();
+
+      const requestData = {
+        requestNumber: `REQ-${Date.now()}`,
+        category: 'lab_equipment',
+        items: [
+          {
+            name: formData.itemName,
+            quantity: parseInt(formData.quantity),
+            estimatedUnitPrice: parseInt(formData.unitPrice),
+            description: '',
+          }
+        ],
+        totalEstimatedCost: totalCost,
+        justification: formData.justification,
+        priority: formData.priority,
+        requestedBy: {
+          id: user?.id,
+          name: user?.name || 'Lab Technician',
+          email: user?.email || '',
+          department: user?.department || '',
+          role: user?.role || 'lab_to',
+        },
+        department: user?.department || '',
+        remarks: [],
+        createdAt: new Date().toISOString(),
+      };
+
+      const response = await mockRequests.createCapitalRequest(requestData);
+
+      toast({ title: 'Request Submitted', description: 'Your capital item request has been sent to the Lab In-Charge for approval.' });
       navigate('/lab-to/dashboard');
-    }, 1000);
+    } catch (error) {
+      console.error('Error submitting request:', error);
+      toast({ title: 'Error', description: error.message || 'Failed to submit request. Please try again.', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const totalCost = calculateTotal();
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-3xl mx-auto space-y-6">
@@ -55,7 +122,13 @@ const CreateRequest = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <Label>Item Name</Label>
-                <Input placeholder="e.g. Digital Oscilloscope" required />
+                <Input
+                  name="itemName"
+                  value={formData.itemName}
+                  onChange={handleInputChange}
+                  placeholder="e.g. Digital Oscilloscope"
+                  required
+                />
               </div>
 
               <div className="space-y-2">
@@ -73,14 +146,30 @@ const CreateRequest = () => {
 
               <div className="space-y-2">
                 <Label>Quantity</Label>
-                <Input type="number" min="1" placeholder="1" required />
+                <Input
+                  name="quantity"
+                  type="number"
+                  min="1"
+                  value={formData.quantity}
+                  onChange={handleInputChange}
+                  placeholder="1"
+                  required
+                />
               </div>
 
               <div className="space-y-2">
                 <Label>Estimated Unit Price (Rs.)</Label>
                 <div className="relative">
                   <DollarSign className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input type="number" className="pl-9" placeholder="0.00" required />
+                  <Input
+                    name="unitPrice"
+                    type="number"
+                    className="pl-9"
+                    value={formData.unitPrice}
+                    onChange={handleInputChange}
+                    placeholder="0.00"
+                    required
+                  />
                 </div>
               </div>
             </div>
@@ -88,6 +177,9 @@ const CreateRequest = () => {
             <div className="space-y-2">
               <Label>Justification</Label>
               <Textarea
+                name="justification"
+                value={formData.justification}
+                onChange={handleInputChange}
                 placeholder="Why is this equipment needed? (e.g. For new curriculum, replacing broken unit)"
                 required
                 className="h-24"
@@ -96,7 +188,7 @@ const CreateRequest = () => {
 
             <div className="space-y-2">
               <Label>Priority Level</Label>
-              <Select defaultValue="medium">
+              <Select value={formData.priority} onValueChange={(value) => handleSelectChange('priority', value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select Priority" />
                 </SelectTrigger>
@@ -109,12 +201,34 @@ const CreateRequest = () => {
               </Select>
             </div>
 
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex gap-3">
-               <AlertCircle className="w-5 h-5 text-yellow-600 shrink-0" />
-               <div className="text-sm text-yellow-800">
-                 <strong>Note:</strong> Requests over Rs. 500,000 require additional approval from the Faculty Board.
-               </div>
-            </div>
+            {/* Cost Summary */}
+            <Card className="bg-muted/50">
+              <CardContent className="pt-6">
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Unit Price:</span>
+                    <span className="font-medium">Rs. {parseInt(formData.unitPrice || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Quantity:</span>
+                    <span className="font-medium">{formData.quantity} unit(s)</span>
+                  </div>
+                  <div className="border-t pt-3 flex justify-between">
+                    <span className="font-semibold">Total Estimated Cost:</span>
+                    <span className="font-bold text-lg text-primary">Rs. {totalCost.toLocaleString()}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {totalCost > 500000 && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex gap-3">
+                <AlertCircle className="w-5 h-5 text-yellow-600 shrink-0" />
+                <div className="text-sm text-yellow-800">
+                  <strong>Note:</strong> This request exceeds Rs. 500,000 and requires additional approval from the Faculty Board.
+                </div>
+              </div>
+            )}
 
             <div className="flex justify-end gap-3 pt-4">
               <Button type="button" variant="outline" onClick={() => navigate('/lab-to/dashboard')}>

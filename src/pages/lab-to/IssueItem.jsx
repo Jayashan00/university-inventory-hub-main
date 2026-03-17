@@ -1,20 +1,34 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { mockInventoryItems } from '@/lib/mockData';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowRightLeft } from 'lucide-react';
+import { inventory as mockInventoryApi } from '@/lib/mockApi';
 
 const IssueItem = () => {
   const { toast } = useToast();
   const [selectedItem, setSelectedItem] = useState('');
   const [studentId, setStudentId] = useState('');
+  const [items, setItems] = useState([]);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const all = await mockInventoryApi.getAll();
+        if (mounted) setItems(Array.isArray(all) ? all : []);
+      } catch (err) {
+        console.error('Failed to load inventory', err);
+      }
+    })();
+    return () => { mounted = false };
+  }, []);
 
   // Filter only available lab equipment
-  const availableItems = mockInventoryItems.filter(
+  const availableItems = items.filter(
     i => i.category === 'lab_equipment' && i.status === 'available'
   );
 
@@ -49,7 +63,7 @@ const IssueItem = () => {
                 <SelectContent>
                   {availableItems.map(item => (
                     <SelectItem key={item.id} value={item.id}>
-                      {item.name} (SN: {item.serialNumber})
+                      {item.name} {item.serialNumber ? `(SN: ${item.serialNumber})` : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>
