@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Package, CheckCircle2, TrendingUp, Clock
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { mockInventoryItems, mockRequests, mockActivities } from '@/lib/mockData';
+import { mockRequests, mockActivities } from '@/lib/mockData';
+import { inventory as mockInventoryApi } from '@/lib/mockApi';
 import StatsCard from '@/components/common/StatsCard';
 import ActivityFeed from '@/components/common/ActivityFeed';
 import StatusBadge from '@/components/common/StatusBadge';
@@ -13,7 +14,22 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 
 const HODDashboard = () => {
   const { user } = useAuth();
-  const deptItems = mockInventoryItems.filter(i => i.department === user?.department);
+  const [items, setItems] = useState([]);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const all = await mockInventoryApi.getAll();
+        if (mounted) setItems(Array.isArray(all) ? all : []);
+      } catch (err) {
+        console.error('Failed to load inventory', err);
+      }
+    })();
+    return () => { mounted = false };
+  }, []);
+
+  const deptItems = items.filter(i => i.department === user?.department);
   const pendingRequests = mockRequests.filter(r => r.status === 'pending' || r.status === 'approved_by_lab_incharge');
 
   return (

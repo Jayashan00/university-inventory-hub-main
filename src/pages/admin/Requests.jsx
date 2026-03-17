@@ -1,10 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Clock, Package, Armchair, CheckCircle2, XCircle,
   MessageSquare, ChevronRight, Eye
 } from 'lucide-react';
-import { mockRequests } from '@/lib/mockData';
 import DataTable from '@/components/common/DataTable';
 import StatusBadge from '@/components/common/StatusBadge';
 import { Button } from '@/components/ui/button';
@@ -24,13 +23,56 @@ import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
+import { requests as mockRequestsApi } from '@/lib/mockApi';
 
 const AdminRequests = () => {
+  const { user } = useAuth();
+  const { toast } = useToast();
+
+
+  const handleReject = async () => {
+    if (!selectedRequest) return;
+    if (!remarks.trim()) {
+      toast({ title: 'Remarks Required', description: 'Please enter a reason for rejection.', variant: 'destructive' });
+      return;
+    }
+    try {
+      await mockRequestsApi.reject(selectedRequest.id, user.role, { id: user.id, name: user.name }, remarks);
+      toast({ title: 'Request Rejected', description: `${selectedRequest.requestNumber} rejected.` , variant: 'destructive'});
+      setSelectedRequest(null);
+      setRemarks('');
+      await loadRequests();
+    } catch (err) {
+      console.error(err);
+      toast({ title: 'Error', description: err.message || 'Failed to reject', variant: 'destructive' });
+    }
+  };
+
   const [activeTab, setActiveTab] = useState('all');
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [remarks, setRemarks] = useState('');
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  const filteredRequests = mockRequests.filter(request => {
+  const loadRequests = async () => {
+    setLoading(true);
+    try {
+      const all = await mockRequestsApi.getAll();
+      setRequests(Array.isArray(all) ? all : []);
+    } catch (err) {
+      console.error('Failed to load requests', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadRequests();
+  }, []);
+
+  const filteredRequests = requests.filter(request => {
     if (activeTab === 'all') return true;
     if (activeTab === 'pending') return request.status === 'pending' || request.status === 'approved_by_lab_incharge' || request.status === 'approved_by_hod';
     if (activeTab === 'approved') return request.status === 'approved' || request.status === 'completed';
@@ -38,10 +80,23 @@ const AdminRequests = () => {
     return true;
   });
 
-  const pendingCount = mockRequests.filter(r =>
+  const pendingCount = requests.filter(r =>
     r.status === 'pending' || r.status === 'approved_by_lab_incharge' || r.status === 'approved_by_hod'
   ).length;
 
+  const handleApprove = async () => {
+    if (!selectedRequest) return;
+    try {
+      await mockRequestsApi.approve(selectedRequest.id, user.role, { id: user.id, name: user.name });
+      toast({ title: 'Request Approved', description: `${selectedRequest.requestNumber} approved.` });
+      setSelectedRequest(null);
+      setRemarks('');
+      await loadRequests();
+    } catch (err) {
+      console.error(err);
+      toast({ title: 'Error', description: err.message || 'Failed to approve', variant: 'destructive' });
+    }
+  };
   const columns = [
     {
       key: 'requestNumber',
@@ -350,11 +405,11 @@ const AdminRequests = () => {
                 </Button>
                 {selectedRequest.status !== 'approved' && selectedRequest.status !== 'rejected' && (
                   <>
-                    <Button variant="outline" className="text-destructive hover:bg-destructive/10">
+                    <Button variant="outline" className="text-destructive hover:bg-destructive/10" onClick={handleReject}>
                       <XCircle className="w-4 h-4 mr-2" />
                       Reject
                     </Button>
-                    <Button className="btn-primary-gradient">
+                    <Button className="btn-primary-gradient" onClick={handleApprove}>
                       <CheckCircle2 className="w-4 h-4 mr-2" />
                       Approve
                     </Button>
@@ -370,3 +425,4 @@ const AdminRequests = () => {
 };
 
 export default AdminRequests;
+

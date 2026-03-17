@@ -1,73 +1,40 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { GraduationCap, Eye, EyeOff, LogIn, Users } from 'lucide-react';
+import { GraduationCap, Eye, EyeOff, LogIn } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { ROLE_LABELS } from '@/lib/constants';
-import { mockUsers } from '@/lib/mockData';
 
 const Login = () => {
   const navigate = useNavigate();
-  const { login, switchRole } = useAuth();
+  const { login } = useAuth();
   const { toast } = useToast();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [quickLoginRole, setQuickLoginRole] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-
     try {
-      const success = await login(email, password);
-
-      if (success) {
-        toast({
-          title: 'Welcome back!',
-          description: 'You have successfully logged in.',
-        });
-
-        // Navigate based on role
-        const user = mockUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
-        if (user) {
-          navigateToRole(user.role);
-        }
+      const res = await login(email, password);
+      if (res.success) {
+        toast({ title: 'Welcome back!', description: `Logged in as ${res.user.name}` });
+        navigateToRole(res.user.role);
       } else {
-        toast({
-          title: 'Login Failed',
-          description: 'Invalid email or password. Please try again.',
-          variant: 'destructive',
-        });
+        toast({ title: 'Login Failed', description: res.message || 'Invalid credentials', variant: 'destructive' });
       }
+    } catch (err) {
+      toast({ title: 'Login Failed', description: 'Unexpected error', variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleQuickLogin = () => {
-    if (!quickLoginRole) return;
-
-    switchRole(quickLoginRole);
-    toast({
-      title: 'Quick Login Successful',
-      description: `Logged in as ${ROLE_LABELS[quickLoginRole]}`,
-    });
-    navigateToRole(quickLoginRole);
   };
 
   const navigateToRole = (role) => {
@@ -77,8 +44,9 @@ const Login = () => {
       lab_incharge: '/lab-incharge/dashboard',
       ma: '/ma/dashboard',
       lab_to: '/lab-to/dashboard',
+      system_admin: '/admin/dashboard',
     };
-    navigate(routes[role]);
+    navigate(routes[role] || '/');
   };
 
   return (
@@ -88,11 +56,10 @@ const Login = () => {
         className="hidden lg:flex lg:w-1/2 xl:w-3/5 relative overflow-hidden"
         style={{ background: 'var(--gradient-hero)' }}
       >
-        {/* Updated Background Image - University/Library Theme */}
         <div
           className="absolute inset-0 opacity-20 bg-cover bg-center mix-blend-overlay"
           style={{
-            backgroundImage: "url('https://images.unsplash.com/photo-1562774053-701939374585?q=80&w=1986&auto=format&fit=crop')"
+            backgroundImage: "url('https://images.unsplash.com/photo-1562774053-701939374585?q=80&w=1986&auto=format&fit=crop')",
           }}
         />
 
@@ -148,7 +115,6 @@ const Login = () => {
           </motion.div>
         </div>
 
-        {/* Decorative elements */}
         <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-accent/20 rounded-full blur-[120px]" />
         <div className="absolute top-[20%] right-[10%] w-[200px] h-[200px] bg-white/10 rounded-full blur-[80px]" />
       </div>
@@ -172,9 +138,7 @@ const Login = () => {
           <Card className="border-border/50 shadow-xl bg-card/50 backdrop-blur-sm">
             <CardHeader className="space-y-1 pb-6">
               <CardTitle className="text-2xl font-serif">Sign In</CardTitle>
-              <CardDescription>
-                Access your dashboard using your faculty credentials
-              </CardDescription>
+              <CardDescription>Access your dashboard using your faculty credentials</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-5">
@@ -210,11 +174,7 @@ const Login = () => {
                       className="absolute right-0 top-0 h-full px-3 hover:bg-transparent text-muted-foreground hover:text-foreground"
                       onClick={() => setShowPassword(!showPassword)}
                     >
-                      {showPassword ? (
-                        <EyeOff className="w-4 h-4" />
-                      ) : (
-                        <Eye className="w-4 h-4" />
-                      )}
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </Button>
                   </div>
                 </div>
@@ -241,46 +201,6 @@ const Login = () => {
                   )}
                 </Button>
               </form>
-
-              <div className="relative my-8">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-border" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-background px-2 text-muted-foreground font-medium">
-                    Or Use Quick Login
-                  </span>
-                </div>
-              </div>
-
-              {/* Quick Login for Demo */}
-              <div className="space-y-3 bg-muted/30 p-4 rounded-xl border border-border/50">
-                <p className="text-xs text-center text-muted-foreground mb-2 font-medium">Select a role to simulate login:</p>
-                <Select value={quickLoginRole} onValueChange={(v) => setQuickLoginRole(v)}>
-                  <SelectTrigger className="bg-background border-border/60">
-                    <SelectValue placeholder="Select User Role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(ROLE_LABELS).map(([role, label]) => (
-                      <SelectItem key={role} value={role}>
-                        <div className="flex items-center gap-2">
-                          <Users className="w-4 h-4 text-primary" />
-                          <span>{label}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Button
-                  variant="secondary"
-                  className="w-full hover:bg-secondary/80"
-                  onClick={handleQuickLogin}
-                  disabled={!quickLoginRole}
-                >
-                  Enter as {quickLoginRole ? ROLE_LABELS[quickLoginRole] : 'Selected Role'}
-                </Button>
-              </div>
             </CardContent>
           </Card>
         </motion.div>
@@ -290,3 +210,4 @@ const Login = () => {
 };
 
 export default Login;
+

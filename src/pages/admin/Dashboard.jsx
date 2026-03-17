@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Package, Armchair, FileText, AlertTriangle, TrendingUp,
@@ -6,7 +6,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { DEPARTMENTS } from '@/lib/constants';
-import { mockInventoryItems, mockRequests, mockActivities, mockStockAlerts } from '@/lib/mockData';
+import { mockRequests, mockActivities, mockStockAlerts } from '@/lib/mockData';
+import { inventory as mockInventoryApi } from '@/lib/mockApi';
 import StatsCard from '@/components/common/StatsCard';
 import ActivityFeed from '@/components/common/ActivityFeed';
 import DepartmentCard from '@/components/common/DepartmentCard';
@@ -19,10 +20,24 @@ import { useNavigate } from 'react-router-dom';
 const AdminDashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [items, setItems] = useState([]);
 
-  const totalEquipment = mockInventoryItems.filter(i => i.category === 'lab_equipment').length;
-  const totalFurniture = mockInventoryItems.filter(i => i.category === 'furniture').length;
-  const totalValue = mockInventoryItems.reduce((sum, i) => sum + i.totalValue, 0);
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const all = await mockInventoryApi.getAll();
+        if (mounted) setItems(Array.isArray(all) ? all : []);
+      } catch (err) {
+        console.error('Failed to load inventory', err);
+      }
+    })();
+    return () => { mounted = false };
+  }, []);
+
+  const totalEquipment = items.filter(i => i.category === 'lab_equipment').length;
+  const totalFurniture = items.filter(i => i.category === 'furniture').length;
+  const totalValue = items.reduce((sum, i) => sum + (i.totalValue || 0), 0);
   const pendingRequests = mockRequests.filter(r => r.status === 'pending').length;
 
   const containerVariants = {
@@ -266,3 +281,4 @@ const AdminDashboard = () => {
 };
 
 export default AdminDashboard;
+
